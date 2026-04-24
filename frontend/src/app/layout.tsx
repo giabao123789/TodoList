@@ -1,23 +1,24 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import "./globals.css";
 import { Navbar } from "@/components/Navbar";
+import "./globals.css";
 
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
   title: {
-    default: "BlushTodo — AI-powered todo list",
-    template: "%s · BlushTodo",
+    default: "AI Todo Platform",
+    template: "%s - AI Todo Platform",
   },
   description:
-    "Soft pink productivity app with AI task generation, smart suggestions, and chat coaching.",
+    "Dark, refined task management with AI suggestions, prioritization, and chat guidance.",
   openGraph: {
-    title: "BlushTodo",
-    description: "AI-powered todos with a calm pink UI.",
+    title: "AI Todo Platform",
+    description: "A focused todo workspace with AI-powered planning and suggestions.",
     type: "website",
   },
   robots: { index: true, follow: true },

@@ -2,9 +2,20 @@
 
 import Link from 'next/link';
 import { motion } from 'framer-motion';
+import {
+  ArrowRight,
+  LayoutGrid,
+  LogOut,
+  MessageCircle,
+  MoonStar,
+} from 'lucide-react';
+import { usePathname } from 'next/navigation';
 import { useAuthStore } from '@/store/auth-store';
 
+const easeOut = [0.16, 1, 0.3, 1] as const;
+
 export function Navbar() {
+  const pathname = usePathname();
   const { user, token, logout } = useAuthStore();
 
   const toggleTheme = () => {
@@ -17,67 +28,100 @@ export function Navbar() {
     }
   };
 
+  const navLinks = [
+    { href: '/dashboard', label: 'Dashboard', icon: LayoutGrid },
+    { href: '/ai', label: 'AI', icon: MessageCircle },
+  ];
+
   return (
-    <header className="sticky top-0 z-40 border-b border-rose-100/80 bg-[#fff1f2]/90 backdrop-blur-md dark:border-rose-900/40 dark:bg-[#1a1418]/90">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
-        <Link href="/" className="flex items-center gap-2">
+    <header className="sticky top-0 z-40 border-b border-[color:var(--border)]/90 bg-[rgba(10,10,15,0.82)] backdrop-blur-xl">
+      <div className="mx-auto flex max-w-[1280px] items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
+        <Link href="/" className="flex min-w-0 items-center gap-3">
           <motion.span
-            layoutId="logo"
-            className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-br from-pink-300 to-rose-400 text-sm font-bold text-white shadow-soft"
+            layoutId="logo-mark"
+            className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/5 bg-[rgba(24,24,38,0.9)] shadow-soft"
+            transition={{ duration: 0.2, ease: easeOut }}
           >
-            ✓
+            <span className="grid grid-cols-2 gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-[4px] bg-[rgba(232,232,240,0.9)]" />
+              <span className="h-2.5 w-2.5 rounded-[4px] bg-[rgba(232,232,240,0.28)]" />
+              <span className="h-2.5 w-2.5 rounded-[4px] bg-[var(--primary)]" />
+              <span className="h-2.5 w-2.5 rounded-[4px] bg-[rgba(232,232,240,0.52)]" />
+            </span>
           </motion.span>
-          <span className="text-lg font-semibold tracking-tight text-rose-900 dark:text-rose-100">
-            BlushTodo
+
+          <span className="min-w-0">
+            <span className="block truncate text-[1.05rem] font-semibold tracking-[-0.02em] text-[var(--foreground)]">
+              AI Todo
+            </span>
+            <span className="block truncate text-xs text-[var(--foreground-muted)]">
+              Focused planning with quiet AI help
+            </span>
           </span>
         </Link>
 
         <nav className="flex items-center gap-2 sm:gap-3">
-          <button
+          <motion.button
             type="button"
+            whileTap={{ scale: 0.97 }}
             onClick={toggleTheme}
-            className="rounded-2xl border border-rose-200/80 bg-white/70 px-3 py-2 text-sm text-rose-800 shadow-sm transition hover:border-pink-300 dark:border-rose-800 dark:bg-rose-950/50 dark:text-rose-100"
+            className="btn-secondary hidden items-center gap-2 rounded-2xl px-3 py-2 text-sm font-medium sm:inline-flex"
           >
+            <MoonStar className="h-4 w-4" />
             Theme
-          </button>
+          </motion.button>
+
           {token ? (
             <>
-              <span className="hidden max-w-[12rem] truncate text-sm text-rose-700 dark:text-rose-200 sm:inline">
-                {user?.email}
-              </span>
-              <Link
-                href="/dashboard"
-                className="rounded-2xl bg-white/80 px-3 py-2 text-sm font-medium text-rose-900 shadow-sm ring-1 ring-rose-200/80 hover:ring-pink-300 dark:bg-rose-950/60 dark:text-rose-50 dark:ring-rose-800"
-              >
-                Dashboard
-              </Link>
-              <Link
-                href="/ai"
-                className="rounded-2xl px-2 py-2 text-sm font-medium text-rose-800 hover:bg-rose-50/80 dark:text-rose-200 dark:hover:bg-rose-950/50 sm:px-3"
-              >
-                AI
-              </Link>
-              <button
+              <div className="hidden items-center gap-2 rounded-2xl border border-[color:var(--border)] bg-[rgba(17,17,24,0.74)] px-3 py-2 md:flex">
+                <span className="h-2 w-2 rounded-full bg-[var(--success)]" />
+                <span className="max-w-[14rem] truncate text-sm text-[var(--foreground-muted)]">
+                  {user?.email}
+                </span>
+              </div>
+
+              {navLinks.map(({ href, label, icon: Icon }) => {
+                const active = pathname === href || pathname.startsWith(`${href}/`);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    className={`inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm font-medium active:scale-[0.97] ${
+                      active
+                        ? 'border-[rgba(91,110,245,0.22)] bg-[rgba(91,110,245,0.14)] text-[var(--foreground)]'
+                        : 'border-[color:var(--border)] bg-[rgba(17,17,24,0.74)] text-[var(--foreground-muted)] hover:text-[var(--foreground)]'
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                    <span>{label}</span>
+                  </Link>
+                );
+              })}
+
+              <motion.button
                 type="button"
+                whileTap={{ scale: 0.97 }}
                 onClick={() => logout()}
-                className="rounded-2xl bg-gradient-to-r from-pink-400 to-rose-400 px-4 py-2 text-sm font-medium text-white shadow-md shadow-pink-300/40 transition hover:brightness-105 dark:shadow-none"
+                className="btn-secondary inline-flex items-center gap-2 rounded-2xl px-3 py-2 text-sm font-medium"
               >
-                Log out
-              </button>
+                <LogOut className="h-4 w-4" />
+                <span className="hidden sm:inline">Log out</span>
+              </motion.button>
             </>
           ) : (
             <>
               <Link
                 href="/login"
-                className="rounded-2xl px-3 py-2 text-sm font-medium text-rose-800 hover:text-rose-950 dark:text-rose-200"
+                className="btn-secondary inline-flex items-center gap-2 rounded-2xl px-3 py-2 text-sm font-medium active:scale-[0.97]"
               >
                 Log in
               </Link>
               <Link
                 href="/register"
-                className="rounded-2xl bg-gradient-to-r from-pink-400 to-rose-400 px-4 py-2 text-sm font-medium text-white shadow-md shadow-pink-300/40"
+                className="btn-primary inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold active:scale-[0.97]"
               >
-                Sign up
+                Start free
+                <ArrowRight className="h-4 w-4" />
               </Link>
             </>
           )}

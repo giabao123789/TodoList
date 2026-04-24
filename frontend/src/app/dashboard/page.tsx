@@ -1,6 +1,7 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
+import { Search, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import {
   type Todo,
@@ -19,6 +20,105 @@ import { TodoList } from "@/components/TodoList";
 
 type Filter = "all" | "completed" | "pending";
 
+const easeOut = [0.16, 1, 0.3, 1] as const;
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.05,
+    },
+  },
+};
+
+const sectionVariants = {
+  hidden: { opacity: 0, y: 18 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.26,
+      ease: easeOut,
+    },
+  },
+};
+
+const priorityTone: Record<
+  TodoPriority,
+  {
+    background: string;
+    border: string;
+    text: string;
+  }
+> = {
+  high: {
+    background: "rgba(248, 113, 113, 0.14)",
+    border: "rgba(248, 113, 113, 0.22)",
+    text: "#f4aaaa",
+  },
+  medium: {
+    background: "rgba(245, 184, 75, 0.16)",
+    border: "rgba(245, 184, 75, 0.22)",
+    text: "#f8d58e",
+  },
+  low: {
+    background: "rgba(52, 211, 153, 0.16)",
+    border: "rgba(52, 211, 153, 0.2)",
+    text: "#7ce7c0",
+  },
+};
+
+function MetricCard({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: number;
+  accent?: "primary" | "success";
+}) {
+  const valueClass =
+    accent === "success"
+      ? "text-[var(--success)]"
+      : accent === "primary"
+        ? "text-[var(--foreground)]"
+        : "text-[var(--foreground)]";
+
+  return (
+    <div className="metric-chip rounded-2xl p-4">
+      <p className="text-xs uppercase tracking-[0.12em] text-[var(--foreground-muted)]">
+        {label}
+      </p>
+      <p className={`mt-3 text-2xl font-semibold tracking-[-0.03em] ${valueClass}`}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function TodoSkeletonList() {
+  return (
+    <div className="space-y-2">
+      {Array.from({ length: 4 }).map((_, index) => (
+        <div
+          key={index}
+          className="rounded-[24px] border border-[color:var(--border)] bg-[rgba(17,17,24,0.72)] px-4 py-4"
+        >
+          <div className="flex items-center gap-3">
+            <div className="loading-skeleton h-11 w-11 rounded-2xl" />
+            <div className="min-w-0 flex-1 space-y-2">
+              <div className="loading-skeleton h-4 w-[40%] rounded-full" />
+              <div className="loading-skeleton h-3 w-[22%] rounded-full" />
+            </div>
+            <div className="loading-skeleton hidden h-9 w-24 rounded-2xl sm:block" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const [items, setItems] = useState<Todo[]>([]);
   const [page, setPage] = useState(1);
@@ -34,6 +134,9 @@ export default function DashboardPage() {
   const [aiNote, setAiNote] = useState<string | null>(null);
 
   const selected = items.find((t) => t.id === selectedId) ?? null;
+  const openCount = items.filter((todo) => !todo.completed).length;
+  const completedCount = items.filter((todo) => todo.completed).length;
+  const highPriorityCount = items.filter((todo) => todo.priority === "high").length;
 
   const refreshFirstPage = useCallback(async () => {
     setLoading(true);
@@ -58,73 +161,73 @@ export default function DashboardPage() {
 
   const loadMore = async () => {
     if (page >= totalPages) return;
-    const np = page + 1;
+    const nextPage = page + 1;
     const data = await fetchTodos({
-      page: np,
+      page: nextPage,
       limit: 40,
       filter,
       search: search || undefined,
     });
-    setPage(np);
+    setPage(nextPage);
     setItems((prev) => {
-      const seen = new Set(prev.map((t) => t.id));
+      const seen = new Set(prev.map((todo) => todo.id));
       const next = [...prev];
-      for (const t of data.items) {
-        if (!seen.has(t.id)) next.push(t);
+      for (const todo of data.items) {
+        if (!seen.has(todo.id)) next.push(todo);
       }
       return next;
     });
   };
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSearch = (event: React.FormEvent) => {
+    event.preventDefault();
     setSearch(searchInput.trim());
   };
 
-  const addTodo = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const addTodo = async (event: React.FormEvent) => {
+    event.preventDefault();
     const title = newTitle.trim();
     if (!title) return;
-    const t = await createTodo({ title });
+    const todo = await createTodo({ title });
     setNewTitle("");
-    setItems((prev) => [t, ...prev]);
+    setItems((prev) => [todo, ...prev]);
   };
 
   const onToggle = async (id: string, completed: boolean) => {
     const updated = await updateTodo(id, { completed });
-    setItems((prev) => prev.map((x) => (x.id === id ? updated : x)));
+    setItems((prev) => prev.map((todo) => (todo.id === id ? updated : todo)));
   };
 
   const onDelete = async (id: string) => {
     await deleteTodo(id);
-    setItems((prev) => prev.filter((x) => x.id !== id));
+    setItems((prev) => prev.filter((todo) => todo.id !== id));
     if (selectedId === id) setSelectedId(null);
   };
 
   const onReorder = async (orderedIds: string[]) => {
     const idSet = new Set(orderedIds);
     setItems((prev) => {
-      const map = new Map(prev.map((t) => [t.id, t]));
+      const map = new Map(prev.map((todo) => [todo.id, todo]));
       const ordered = orderedIds
         .map((id) => map.get(id))
         .filter(Boolean) as Todo[];
-      const rest = prev.filter((t) => !idSet.has(t.id));
+      const rest = prev.filter((todo) => !idSet.has(todo.id));
       return [...ordered, ...rest];
     });
     await reorderTodos(orderedIds);
   };
 
   const runGenerate = async () => {
-    const g = aiGoal.trim();
-    if (!g) return;
+    const goal = aiGoal.trim();
+    if (!goal) return;
     setAiBusy("generate");
     setAiNote(null);
     try {
-      const res = await generateTodos(g);
-      for (const t of res.todos) {
+      const res = await generateTodos(goal);
+      for (const todo of res.todos) {
         const created = await createTodo({
-          title: t.title,
-          priority: (t.priority as TodoPriority) || "medium",
+          title: todo.title,
+          priority: (todo.priority as TodoPriority) || "medium",
         });
         setItems((prev) => [created, ...prev]);
       }
@@ -134,7 +237,7 @@ export default function DashboardPage() {
       const msg =
         (err as { response?: { data?: { message?: string | string[] } } })
           ?.response?.data?.message;
-      setAiNote(typeof msg === "string" ? msg : "Could not generate todos.");
+      setAiNote(typeof msg === "string" ? msg : "Could not generate tasks.");
     } finally {
       setAiBusy(null);
     }
@@ -153,13 +256,13 @@ export default function DashboardPage() {
     setAiBusy("suggest");
     setAiNote(null);
     try {
-      const ctx = items
-        .filter((t) => !t.completed && t.id !== selected.id)
+      const context = items
+        .filter((todo) => !todo.completed && todo.id !== selected.id)
         .slice(0, 5)
-        .map((t) => t.title)
+        .map((todo) => todo.title)
         .join("; ");
-      const res = await suggestNextTask(selected.title, ctx);
-      setAiNote(res.suggestion + (res.reason ? ` — ${res.reason}` : ""));
+      const res = await suggestNextTask(selected.title, context);
+      setAiNote(res.suggestion + (res.reason ? ` - ${res.reason}` : ""));
     } catch (err: unknown) {
       const msg = getAiErrorMessage(err);
       setAiNote(msg ?? "Suggestion failed.");
@@ -175,8 +278,8 @@ export default function DashboardPage() {
     try {
       const res = await classifyPriority(selected.title);
       const updated = await updateTodo(selected.id, { priority: res.priority });
-      setItems((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
-      setAiNote(`Priority: ${res.priority}. ${res.rationale || ""}`);
+      setItems((prev) => prev.map((todo) => (todo.id === updated.id ? updated : todo)));
+      setAiNote(`Priority: ${res.priority}. ${res.rationale || ""}`.trim());
     } catch (err: unknown) {
       const msg = getAiErrorMessage(err);
       setAiNote(msg ?? "Priority detection failed.");
@@ -197,8 +300,10 @@ export default function DashboardPage() {
       const updated = await updateTodo(selected.id, {
         deadline: res.deadline,
       });
-      setItems((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
-      setAiNote(`Suggested due: ${res.deadline} ${res.confidence ? `(${res.confidence})` : ""}`);
+      setItems((prev) => prev.map((todo) => (todo.id === updated.id ? updated : todo)));
+      setAiNote(
+        `Suggested due: ${res.deadline}${res.confidence ? ` (${res.confidence})` : ""}`,
+      );
     } catch (err: unknown) {
       const msg = getAiErrorMessage(err);
       setAiNote(msg ?? "Deadline suggestion failed.");
@@ -208,169 +313,335 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold text-rose-950 dark:text-rose-50">
-          Dashboard
-        </h1>
-        <p className="mt-1 text-sm text-rose-700 dark:text-rose-300">
-          Todos, filters, drag to reorder, and AI helpers.
-        </p>
-      </div>
+    <motion.div
+      variants={containerVariants}
+      initial="hidden"
+      animate="show"
+      className="space-y-6"
+    >
+      <motion.section
+        variants={sectionVariants}
+        className="surface-panel relative overflow-hidden rounded-[32px] px-6 py-7 sm:px-8 sm:py-8"
+      >
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(91,110,245,0.18),transparent_30%),radial-gradient(circle_at_bottom_left,rgba(91,110,245,0.08),transparent_34%)]"
+        />
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
-        <div className="space-y-4">
-          <form
-            onSubmit={addTodo}
-            className="flex flex-col gap-2 sm:flex-row sm:items-center"
-          >
-            <input
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-              placeholder="New todo…"
-              className="min-w-0 flex-1 rounded-2xl border border-rose-200/80 bg-white/90 px-4 py-3 text-rose-950 outline-none ring-pink-400/30 focus:ring-2 dark:border-rose-800 dark:bg-[#2a2028] dark:text-rose-50"
-            />
-            <button
-              type="submit"
-              className="rounded-2xl bg-gradient-to-r from-pink-400 to-rose-400 px-5 py-3 text-sm font-semibold text-white shadow-md"
-            >
-              Add
-            </button>
-          </form>
-
-          <form
-            onSubmit={handleSearch}
-            className="flex flex-wrap items-center gap-2"
-          >
-            <input
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search…"
-              className="min-w-[12rem] flex-1 rounded-2xl border border-rose-200/80 bg-white/90 px-4 py-2 text-sm dark:border-rose-800 dark:bg-[#2a2028] dark:text-rose-50"
-            />
-            <button
-              type="submit"
-              className="rounded-2xl border border-rose-200/80 bg-white/80 px-4 py-2 text-sm dark:border-rose-800 dark:bg-[#2a2028]"
-            >
-              Search
-            </button>
-          </form>
-
-          <div className="flex flex-wrap gap-2">
-            {(
-              [
-                ["all", "All"],
-                ["pending", "Pending"],
-                ["completed", "Done"],
-              ] as const
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setFilter(key)}
-                className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${
-                  filter === key
-                    ? "bg-pink-200/80 text-rose-950 dark:bg-pink-900/50 dark:text-rose-50"
-                    : "bg-white/70 text-rose-800 hover:bg-rose-50 dark:bg-[#2a2028] dark:text-rose-200"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
+        <div className="relative flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+          <div className="max-w-3xl">
+            <p className="kicker">Command Center</p>
+            <h1 className="mt-3 max-w-2xl text-[clamp(2.2rem,2rem+1vw,3rem)] leading-[1.02]">
+              Clear the queue, keep momentum.
+            </h1>
+            <p className="mt-4 max-w-2xl text-sm leading-6 text-[var(--foreground-muted)] sm:text-base">
+              A fast workspace for capture, prioritization, and quiet AI support
+              when the next move is not obvious.
+            </p>
           </div>
 
-          {loading ? (
-            <p className="text-sm text-rose-600">Loading todos…</p>
-          ) : (
-            <TodoList
-              todos={items}
-              selectedId={selectedId}
-              onSelect={setSelectedId}
-              onToggle={onToggle}
-              onDelete={onDelete}
-              onReorder={onReorder}
-            />
-          )}
-
-          {page < totalPages && (
-            <button
-              type="button"
-              onClick={() => void loadMore()}
-              className="w-full rounded-2xl border border-rose-200/80 py-2 text-sm text-rose-800 dark:border-rose-800 dark:text-rose-200"
-            >
-              Load more
-            </button>
-          )}
+          <div className="grid gap-3 sm:grid-cols-3">
+            <MetricCard label="Open" value={openCount} accent="primary" />
+            <MetricCard label="Done" value={completedCount} accent="success" />
+            <MetricCard label="High Priority" value={highPriorityCount} />
+          </div>
         </div>
+      </motion.section>
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <motion.div variants={sectionVariants} className="space-y-6">
+          <section className="surface-panel rounded-[30px] p-6 sm:p-7">
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)]">
+              <form onSubmit={addTodo} className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="kicker">Capture</p>
+                    <h2 className="mt-2 text-[clamp(1.3rem,1.2rem+0.45vw,1.7rem)]">
+                      Add the next task
+                    </h2>
+                  </div>
+                  <span className="rounded-full border border-[color:var(--border)] bg-[rgba(24,24,38,0.8)] px-3 py-1 text-xs text-[var(--foreground-muted)]">
+                    Quick entry
+                  </span>
+                </div>
+
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <input
+                    value={newTitle}
+                    onChange={(event) => setNewTitle(event.target.value)}
+                    placeholder="Add a task you do not want to drop..."
+                    className="field-shell min-w-0 flex-1 rounded-2xl px-4 py-3.5 text-sm sm:text-base"
+                  />
+                  <motion.button
+                    type="submit"
+                    whileTap={{ scale: 0.97 }}
+                    className="btn-primary rounded-2xl px-5 py-3.5 text-sm font-semibold"
+                  >
+                    Add task
+                  </motion.button>
+                </div>
+              </form>
+
+              <form onSubmit={handleSearch} className="space-y-3">
+                <div>
+                  <p className="kicker">Find</p>
+                  <h2 className="mt-2 text-[clamp(1.3rem,1.2rem+0.45vw,1.7rem)]">
+                    Search the queue
+                  </h2>
+                </div>
+
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <div className="relative min-w-0 flex-1">
+                    <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--foreground-muted)]" />
+                    <input
+                      value={searchInput}
+                      onChange={(event) => setSearchInput(event.target.value)}
+                      placeholder="Titles, deadlines, priorities..."
+                      className="field-shell w-full rounded-2xl py-3.5 pl-11 pr-4 text-sm"
+                    />
+                  </div>
+
+                  <motion.button
+                    type="submit"
+                    whileTap={{ scale: 0.97 }}
+                    className="btn-secondary rounded-2xl px-4 py-3.5 text-sm font-semibold"
+                  >
+                    Search
+                  </motion.button>
+                </div>
+              </form>
+            </div>
+
+            <div className="mt-5 border-t border-[color:var(--border)] pt-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="kicker">Filter</p>
+                  <p className="mt-2 text-sm leading-6 text-[var(--foreground-muted)]">
+                    Crossfade between every task, active work, and completed items.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {(
+                    [
+                      ["all", "All"],
+                      ["pending", "Pending"],
+                      ["completed", "Done"],
+                    ] as const
+                  ).map(([key, label]) => {
+                    const active = filter === key;
+                    return (
+                      <motion.button
+                        key={key}
+                        type="button"
+                        whileTap={{ scale: 0.97 }}
+                        onClick={() => setFilter(key)}
+                        className="relative overflow-hidden rounded-2xl border border-[color:var(--border)] px-4 py-2.5 text-sm font-semibold"
+                      >
+                        {active && (
+                          <motion.span
+                            layoutId="filter-pill"
+                            transition={{ duration: 0.2, ease: easeOut }}
+                            className="absolute inset-0 bg-[var(--primary)]"
+                          />
+                        )}
+                        <span
+                          className={`relative ${
+                            active
+                              ? "text-[var(--foreground)]"
+                              : "text-[var(--foreground-muted)]"
+                          }`}
+                        >
+                          {label}
+                        </span>
+                      </motion.button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <motion.section
+            variants={sectionVariants}
+            className="surface-panel rounded-[30px] p-4 sm:p-5"
+          >
+            <div className="flex flex-col gap-3 px-2 pb-4 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="kicker">Queue</p>
+                <h2 className="mt-2 text-[clamp(1.4rem,1.3rem+0.4vw,1.8rem)]">
+                  Task flow
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-[var(--foreground-muted)]">
+                  Drag to reorder. Select a task to route AI actions through the
+                  side panel.
+                </p>
+              </div>
+              <span className="rounded-full border border-[color:var(--border)] bg-[rgba(24,24,38,0.76)] px-3 py-1 text-xs text-[var(--foreground-muted)]">
+                {items.length} loaded
+              </span>
+            </div>
+
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={loading ? `loading-${filter}` : `ready-${filter}`}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2, ease: easeOut }}
+              >
+                {loading ? (
+                  <TodoSkeletonList />
+                ) : (
+                  <TodoList
+                    todos={items}
+                    selectedId={selectedId}
+                    onSelect={setSelectedId}
+                    onToggle={onToggle}
+                    onDelete={onDelete}
+                    onReorder={onReorder}
+                  />
+                )}
+              </motion.div>
+            </AnimatePresence>
+
+            {page < totalPages && !loading && (
+              <motion.button
+                type="button"
+                whileTap={{ scale: 0.97 }}
+                onClick={() => void loadMore()}
+                className="btn-secondary mt-4 w-full rounded-[20px] px-4 py-3 text-sm font-semibold"
+              >
+                Load more tasks
+              </motion.button>
+            )}
+          </motion.section>
+        </motion.div>
 
         <motion.aside
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="space-y-4 rounded-3xl border border-rose-100/90 bg-white/90 p-5 shadow-soft dark:border-rose-900/50 dark:bg-[#231b22]/95"
+          variants={sectionVariants}
+          className="surface-panel space-y-6 rounded-[30px] p-6"
         >
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-rose-400">
-            AI tools
-          </h2>
           <div>
-            <label className="text-xs font-medium text-rose-700 dark:text-rose-300">
-              Smart generator
-            </label>
-            <textarea
-              value={aiGoal}
-              onChange={(e) => setAiGoal(e.target.value)}
-              rows={3}
-              placeholder='e.g. "Learn JavaScript in 7 days"'
-              className="mt-1 w-full rounded-2xl border border-rose-200/80 bg-[#fff1f2]/50 p-3 text-sm dark:border-rose-800 dark:bg-[#2a2028] dark:text-rose-50"
-            />
-            <button
-              type="button"
-              disabled={!!aiBusy}
-              onClick={() => void runGenerate()}
-              className="mt-2 w-full rounded-2xl bg-gradient-to-r from-pink-400 to-rose-400 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-            >
-              {aiBusy === "generate" ? "Generating…" : "Generate todos"}
-            </button>
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-[var(--primary)]" />
+              <p className="kicker">AI Tools</p>
+            </div>
+            <p className="mt-4 text-[clamp(1.3rem,1.2rem+0.4vw,1.65rem)] font-semibold text-[var(--foreground)]">
+              Let the assistant take the heavy lift.
+            </p>
+            <p className="mt-2 text-sm leading-6 text-[var(--foreground-muted)]">
+              Draft tasks from a goal, then refine the currently selected item with
+              suggestions, priority, or a due date.
+            </p>
           </div>
 
-          <div className="border-t border-rose-100/80 pt-4 dark:border-rose-900/50">
-            <p className="text-xs text-rose-600 dark:text-rose-400">
-              Select a todo for suggestions, priority, or deadline.
-            </p>
-            <div className="mt-2 flex flex-col gap-2">
-              <button
+          <div className="rounded-[24px] border border-[color:var(--border)] bg-[rgba(24,24,38,0.78)] p-4">
+            <p className="kicker">Selected Task</p>
+            {selected ? (
+              <div className="mt-3 space-y-3">
+                <p className="text-sm font-semibold leading-6 text-[var(--foreground)]">
+                  {selected.title}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <span
+                    className="rounded-full border px-2.5 py-1 text-xs font-semibold capitalize"
+                    style={{
+                      backgroundColor: priorityTone[selected.priority].background,
+                      borderColor: priorityTone[selected.priority].border,
+                      color: priorityTone[selected.priority].text,
+                    }}
+                  >
+                    {selected.priority}
+                  </span>
+                  {selected.deadline && (
+                    <span className="rounded-full border border-[color:var(--border)] bg-[rgba(17,17,24,0.82)] px-2.5 py-1 text-xs font-medium text-[var(--foreground-muted)]">
+                      Due{" "}
+                      {new Date(selected.deadline).toLocaleDateString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <p className="mt-3 text-sm leading-6 text-[var(--foreground-muted)]">
+                Select a task from the queue to unlock contextual AI actions.
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            <label htmlFor="ai-goal" className="kicker">
+              Generate from a goal
+            </label>
+            <textarea
+              id="ai-goal"
+              value={aiGoal}
+              onChange={(event) => setAiGoal(event.target.value)}
+              rows={4}
+              placeholder='Example: "Prepare a product launch in 5 days"'
+              className="field-shell w-full rounded-[24px] p-4 text-sm leading-6"
+            />
+            <motion.button
+              type="button"
+              whileTap={{ scale: 0.97 }}
+              disabled={!!aiBusy}
+              onClick={() => void runGenerate()}
+              className="btn-primary w-full rounded-2xl px-4 py-3 text-sm font-semibold disabled:opacity-50"
+            >
+              {aiBusy === "generate" ? "Generating..." : "Generate tasks"}
+            </motion.button>
+          </div>
+
+          <div className="space-y-3 border-t border-[color:var(--border)] pt-5">
+            <p className="kicker">Selected task actions</p>
+            <div className="grid gap-2">
+              <motion.button
                 type="button"
+                whileTap={{ scale: 0.97 }}
                 disabled={!selected || !!aiBusy}
                 onClick={() => void runSuggest()}
-                className="rounded-2xl border border-rose-200/80 py-2 text-sm font-medium disabled:opacity-40 dark:border-rose-800"
+                className="btn-secondary rounded-2xl px-4 py-3 text-left text-sm font-semibold disabled:opacity-40"
               >
-                {aiBusy === "suggest" ? "…" : "Suggest next task"}
-              </button>
-              <button
+                {aiBusy === "suggest" ? "Working..." : "Suggest next task"}
+              </motion.button>
+              <motion.button
                 type="button"
+                whileTap={{ scale: 0.97 }}
                 disabled={!selected || !!aiBusy}
                 onClick={() => void runPriority()}
-                className="rounded-2xl border border-rose-200/80 py-2 text-sm font-medium disabled:opacity-40 dark:border-rose-800"
+                className="btn-secondary rounded-2xl px-4 py-3 text-left text-sm font-semibold disabled:opacity-40"
               >
-                {aiBusy === "priority" ? "…" : "Detect priority"}
-              </button>
-              <button
+                {aiBusy === "priority" ? "Working..." : "Detect priority"}
+              </motion.button>
+              <motion.button
                 type="button"
+                whileTap={{ scale: 0.97 }}
                 disabled={!selected || !!aiBusy}
                 onClick={() => void runDeadline()}
-                className="rounded-2xl border border-rose-200/80 py-2 text-sm font-medium disabled:opacity-40 dark:border-rose-800"
+                className="btn-secondary rounded-2xl px-4 py-3 text-left text-sm font-semibold disabled:opacity-40"
               >
-                {aiBusy === "deadline" ? "…" : "Suggest deadline"}
-              </button>
+                {aiBusy === "deadline" ? "Working..." : "Suggest deadline"}
+              </motion.button>
             </div>
           </div>
 
-          {aiNote && (
-            <p className="rounded-2xl bg-rose-50/90 p-3 text-sm text-rose-900 dark:bg-[#2a2028] dark:text-rose-100">
-              {aiNote}
-            </p>
-          )}
+          <AnimatePresence initial={false}>
+            {aiNote && (
+              <motion.p
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.2, ease: easeOut }}
+                className="rounded-[22px] border border-[rgba(91,110,245,0.2)] bg-[rgba(91,110,245,0.1)] p-4 text-sm leading-6 text-[var(--foreground)]"
+              >
+                {aiNote}
+              </motion.p>
+            )}
+          </AnimatePresence>
         </motion.aside>
       </div>
-    </div>
+    </motion.div>
   );
 }

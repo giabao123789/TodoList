@@ -1,12 +1,30 @@
 'use client';
 
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
+import { MessageSquarePlus, Sparkles } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { fetchChats, postChatMessage, type ChatDoc } from '@/lib/api';
 
 type Props = {
   initialChatId?: string | null;
 };
+
+const easeOut = [0.16, 1, 0.3, 1] as const;
+
+function HistorySkeleton() {
+  return (
+    <div className="space-y-2">
+      {Array.from({ length: 5 }).map((_, index) => (
+        <div
+          key={index}
+          className="rounded-2xl border border-[color:var(--border)] bg-[rgba(17,17,24,0.7)] px-3 py-3"
+        >
+          <div className="loading-skeleton h-4 w-[70%] rounded-full" />
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function ChatBox({ initialChatId = null }: Props) {
   const [chats, setChats] = useState<ChatDoc[]>([]);
@@ -16,25 +34,35 @@ export function ChatBox({ initialChatId = null }: Props) {
   >([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const refreshChats = async () => {
-    const list = await fetchChats();
-    setChats(list);
-    return list;
+    setHistoryLoading(true);
+    try {
+      const list = await fetchChats();
+      setChats(list);
+      return list;
+    } finally {
+      setHistoryLoading(false);
+    }
   };
 
   useEffect(() => {
     let cancelled = false;
+
     void (async () => {
       try {
         const list = await fetchChats();
         if (!cancelled) setChats(list);
       } catch {
         /* ignore */
+      } finally {
+        if (!cancelled) setHistoryLoading(false);
       }
     })();
+
     return () => {
       cancelled = true;
     };
@@ -55,114 +83,164 @@ export function ChatBox({ initialChatId = null }: Props) {
     setError(null);
     setInput('');
     setLoading(true);
-    const prev = messages;
+    const previous = messages;
     setMessages([...messages, { role: 'user', content: text }]);
+
     try {
       const res = await postChatMessage(text, chatId ?? undefined);
       setChatId(res.chatId);
       setMessages(res.messages);
       await refreshChats();
-    } catch (e: unknown) {
+    } catch (event: unknown) {
       const msg =
-        (e as { response?: { data?: { message?: string } } })?.response?.data
+        (event as { response?: { data?: { message?: string } } })?.response?.data
           ?.message;
       setError(typeof msg === 'string' ? msg : 'Could not reach assistant.');
-      setMessages(prev);
+      setMessages(previous);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex min-h-[70vh] flex-col gap-4 lg:flex-row">
-      <aside className="w-full shrink-0 rounded-3xl border border-rose-100/90 bg-white/90 p-4 shadow-soft dark:border-rose-900/50 dark:bg-[#231b22]/95 lg:w-56">
-        <p className="text-xs font-semibold uppercase tracking-wide text-rose-400">
-          History
-        </p>
-        <button
+    <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
+      <aside className="surface-panel rounded-[30px] p-5">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-[var(--primary)]" />
+          <p className="kicker">History</p>
+        </div>
+
+        <motion.button
           type="button"
+          whileTap={{ scale: 0.97 }}
           onClick={() => {
             setChatId(null);
             setMessages([]);
           }}
-          className="mt-3 w-full rounded-2xl bg-gradient-to-r from-pink-400 to-rose-400 py-2 text-xs font-semibold text-white shadow-md"
+          className="btn-primary mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold"
         >
+          <MessageSquarePlus className="h-4 w-4" />
           New chat
-        </button>
-        <ul className="mt-4 max-h-64 space-y-2 overflow-y-auto text-sm lg:max-h-[calc(70vh-8rem)]">
-          {chats.map((c) => (
-            <li key={c.id}>
-              <button
-                type="button"
-                onClick={() => {
-                  void (async () => {
-                    try {
-                      const list = await refreshChats();
-                      const doc = list.find((x) => x.id === c.id);
-                      if (doc) loadChat(doc);
-                    } catch {
-                      /* ignore */
-                    }
-                  })();
-                }}
-                className={`w-full truncate rounded-xl px-2 py-2 text-left hover:bg-rose-50 dark:hover:bg-rose-950/50 ${
-                  chatId === c.id ? 'bg-pink-100/70 dark:bg-pink-950/40' : ''
-                }`}
-              >
-                {c.title || 'Chat'}
-              </button>
-            </li>
-          ))}
-        </ul>
-      </aside>
+        </motion.button>
 
-      <div className="flex min-w-0 flex-1 flex-col rounded-3xl border border-rose-100/90 bg-white/90 shadow-soft dark:border-rose-900/50 dark:bg-[#231b22]/95">
-        <div className="max-h-[50vh] flex-1 space-y-3 overflow-y-auto p-4 sm:max-h-[60vh]">
-          {messages.length === 0 && (
-            <p className="text-center text-sm text-rose-600 dark:text-rose-300">
-              Ask for focus tips, planning help, or how to chunk your work.
+        <div className="mt-5 max-h-72 overflow-y-auto xl:max-h-[calc(78vh-13rem)]">
+          {historyLoading ? (
+            <HistorySkeleton />
+          ) : chats.length ? (
+            <ul className="space-y-2">
+              {chats.map((chat) => {
+                const active = chatId === chat.id;
+                return (
+                  <li key={chat.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void (async () => {
+                          try {
+                            const list = await refreshChats();
+                            const doc = list.find((entry) => entry.id === chat.id);
+                            if (doc) loadChat(doc);
+                          } catch {
+                            /* ignore */
+                          }
+                        })();
+                      }}
+                      className={`w-full rounded-2xl border px-3 py-3 text-left text-sm font-medium ${
+                        active
+                          ? 'border-[rgba(91,110,245,0.24)] bg-[rgba(91,110,245,0.12)] text-[var(--foreground)]'
+                          : 'border-[color:var(--border)] bg-[rgba(17,17,24,0.7)] text-[var(--foreground-muted)] hover:text-[var(--foreground)]'
+                      }`}
+                    >
+                      <span className="block truncate">{chat.title || 'New conversation'}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="rounded-2xl border border-dashed border-[color:var(--border)] bg-[rgba(17,17,24,0.58)] px-4 py-5 text-sm leading-6 text-[var(--foreground-muted)]">
+              No saved chats yet. Start one when you want planning help or a fast second opinion.
             </p>
           )}
-          {messages.map((m, i) => (
-            <motion.div
-              key={`${m.role}-${i}-${m.content.slice(0, 24)}`}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              className={`max-w-[90%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-                m.role === 'user'
-                  ? 'ml-auto bg-gradient-to-br from-pink-200/90 to-rose-200/80 text-rose-950 dark:from-pink-900/50 dark:to-rose-900/40 dark:text-rose-50'
-                  : 'mr-8 bg-rose-50/90 text-rose-900 dark:bg-[#2a2028] dark:text-rose-100'
-              }`}
-            >
-              {m.content}
-            </motion.div>
-          ))}
+        </div>
+      </aside>
+
+      <div className="surface-panel flex min-h-[72vh] min-w-0 flex-col rounded-[30px]">
+        <div className="border-b border-[color:var(--border)] px-5 py-4">
+          <p className="kicker">Assistant</p>
+          <h2 className="mt-2 text-[clamp(1.35rem,1.25rem+0.35vw,1.7rem)]">
+            Task guidance on demand
+          </h2>
+        </div>
+
+        <div className="max-h-[56vh] flex-1 space-y-3 overflow-y-auto px-5 py-5 xl:max-h-[calc(78vh-12rem)]">
+          {messages.length === 0 && (
+            <div className="flex min-h-full items-center justify-center">
+              <div className="max-w-md text-center">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-3xl border border-[rgba(91,110,245,0.22)] bg-[rgba(91,110,245,0.1)]">
+                  <Sparkles className="h-5 w-5 text-[var(--primary)]" />
+                </div>
+                <p className="mt-5 text-[1.1rem] font-semibold text-[var(--foreground)]">
+                  Ask for focus, planning, or sequencing help.
+                </p>
+                <p className="mt-2 text-sm leading-6 text-[var(--foreground-muted)]">
+                  The assistant is best when you give it real constraints: deadlines,
+                  blockers, and what is already in motion.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <AnimatePresence initial={false}>
+            {messages.map((message, index) => (
+              <motion.div
+                key={`${message.role}-${index}-${message.content.slice(0, 24)}`}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2, ease: easeOut }}
+                className={`max-w-[92%] rounded-[24px] px-4 py-3 text-sm leading-7 ${
+                  message.role === 'user'
+                    ? 'ml-auto border border-[rgba(91,110,245,0.18)] bg-[rgba(91,110,245,0.16)] text-[var(--foreground)]'
+                    : 'mr-8 border border-[color:var(--border)] bg-[rgba(24,24,38,0.74)] text-[var(--foreground)]'
+                }`}
+              >
+                {message.content}
+              </motion.div>
+            ))}
+          </AnimatePresence>
+
           <div ref={bottomRef} />
         </div>
+
         {error && (
-          <p className="px-4 text-sm text-red-600 dark:text-red-400">{error}</p>
+          <p className="px-5 text-sm text-[#f4aaaa]">{error}</p>
         )}
-        <div className="flex gap-2 border-t border-rose-100/80 p-3 dark:border-rose-900/50">
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                void send();
-              }
-            }}
-            placeholder="Message your productivity assistant…"
-            className="min-w-0 flex-1 rounded-2xl border border-rose-200/80 bg-[#fff1f2]/60 px-4 py-3 text-sm text-rose-950 outline-none ring-pink-400/30 focus:ring-2 dark:border-rose-800 dark:bg-[#2a2028] dark:text-rose-50"
-          />
-          <button
-            type="button"
-            disabled={loading}
-            onClick={() => void send()}
-            className="rounded-2xl bg-gradient-to-r from-pink-400 to-rose-400 px-5 py-3 text-sm font-semibold text-white shadow-md disabled:opacity-50"
-          >
-            {loading ? '…' : 'Send'}
-          </button>
+
+        <div className="border-t border-[color:var(--border)] px-5 py-4">
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <input
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault();
+                  void send();
+                }
+              }}
+              placeholder="Message the assistant with context..."
+              className="field-shell min-w-0 flex-1 rounded-2xl px-4 py-3.5 text-sm"
+            />
+            <motion.button
+              type="button"
+              whileTap={{ scale: 0.97 }}
+              disabled={loading}
+              onClick={() => void send()}
+              className="btn-primary rounded-2xl px-5 py-3.5 text-sm font-semibold disabled:opacity-50"
+            >
+              {loading ? 'Sending...' : 'Send'}
+            </motion.button>
+          </div>
         </div>
       </div>
     </div>
