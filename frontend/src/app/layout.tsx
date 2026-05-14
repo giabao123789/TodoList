@@ -31,7 +31,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} font-sans antialiased`}>
+      <body className={`${inter.variable} font-sans antialiased bg-[var(--background)] text-[var(--foreground)]`}>
         <script
           dangerouslySetInnerHTML={{
             __html: `try{if(localStorage.getItem('ai-todo-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}`,

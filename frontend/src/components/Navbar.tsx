@@ -34,12 +34,12 @@ export function Navbar() {
   ];
 
   return (
-    <header className="sticky top-0 z-40 border-b border-[color:var(--border)]/90 bg-[rgba(10,10,15,0.82)] backdrop-blur-xl">
+    <header className="sticky top-0 z-40 border-b border-[#E7E5E4]/90 bg-white/90 backdrop-blur-xl">
       <div className="mx-auto flex max-w-[1280px] items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
         <Link href="/" className="flex min-w-0 items-center gap-3">
           <motion.span
             layoutId="logo-mark"
-            className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/5 bg-[rgba(24,24,38,0.9)] shadow-soft"
+            className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#E7E5E4] bg-white shadow-soft"
             transition={{ duration: 0.2, ease: easeOut }}
           >
             <span className="grid grid-cols-2 gap-1.5">
@@ -73,7 +73,7 @@ export function Navbar() {
 
           {token ? (
             <>
-              <div className="hidden items-center gap-2 rounded-2xl border border-[color:var(--border)] bg-[rgba(17,17,24,0.74)] px-3 py-2 md:flex">
+              <div className="hidden items-center gap-2 rounded-2xl border border-[#E7E5E4] bg-white/80 px-3 py-2 md:flex">
                 <span className="h-2 w-2 rounded-full bg-[var(--success)]" />
                 <span className="max-w-[14rem] truncate text-sm text-[var(--foreground-muted)]">
                   {user?.email}
@@ -88,8 +88,8 @@ export function Navbar() {
                     href={href}
                     className={`inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm font-medium active:scale-[0.97] ${
                       active
-                        ? 'border-[rgba(91,110,245,0.22)] bg-[rgba(91,110,245,0.14)] text-[var(--foreground)]'
-                        : 'border-[color:var(--border)] bg-[rgba(17,17,24,0.74)] text-[var(--foreground-muted)] hover:text-[var(--foreground)]'
+                        ? 'border-[rgba(249,115,22,0.22)] bg-[rgba(249,115,22,0.1)] text-[var(--foreground)]'
+                        : 'border-[#E7E5E4] bg-white text-[var(--foreground-muted)] hover:text-[var(--foreground)]'
                     }`}
                   >
                     <Icon className="h-4 w-4" />
