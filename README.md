@@ -1,407 +1,275 @@
-# BlushTodo — AI-powered todo app
+# AI Todo Platform
 
-Soft pink **Next.js** frontend and **NestJS** backend with MongoDB, JWT auth, OpenAI helpers, and saved chat threads.
-
-## Prerequisites
-
-- Node.js 20+
-- MongoDB (local or [MongoDB Atlas](https://www.mongodb.com/cloud/atlas))
-- OpenAI API key (for AI generation, chat, suggestions)
-
-## Quick start (local)
-
-### 1. Backend
-
-```bash
-cd backend
-cp .env.example .env
-# Edit .env: DATABASE_URL, JWT_SECRET, OPENAI_API_KEY
-npm install
-npm run start:dev
-```
-
-API listens on **http://localhost:4000**. Swagger docs: **http://localhost:4000/docs**.
-
-### 2. Frontend
-
-```bash
-cd frontend
-cp .env.local.example .env.local
-# Default API URL is http://localhost:4000
-npm install
-npm run dev
-```
-
-Open **http://localhost:3000**. Register, then use **Dashboard** (todos + AI sidebar) and **AI** (chat).
-
-## Scripts
-
-| Location   | Command        | Purpose              |
-|-----------|----------------|----------------------|
-| `backend` | `npm run build` | Production compile   |
-| `backend` | `npm run start:dev` | Dev API + watch |
-| `backend` | `npm test`      | Unit tests (auth)    |
-| `backend` | `npm run test:e2e` | E2E (todos, in-memory Mongo) |
-| `frontend`| `npm run build` | Production Next build |
-| `frontend`| `npm run dev`   | Dev server (Turbopack) |
-
-## Environment
-
-**Backend (`.env`)**
-
-- `PORT` — default `4000`
-- `DATABASE_URL` — Mongo connection string
-- `JWT_SECRET` — strong secret for signing JWTs
-- `OPENAI_API_KEY` / `OPENAI_MODEL` — AI features
-- `CORS_ORIGINS` — optional comma-separated front-end URLs
-
-**Frontend (`.env.local`)**
-
-- `NEXT_PUBLIC_API_URL` — backend base URL (no trailing slash)
-
-## Docker
-
-Build images from each service directory (set `NEXT_PUBLIC_API_URL` to your public API URL for the frontend image).
-
-```bash
-docker build -t blush-todo-api ./backend
-docker build -t blush-todo-web --build-arg NEXT_PUBLIC_API_URL=https://api.example.com ./frontend
-```
-
-## Deployment notes
-
-- **Frontend:** Vercel — set `NEXT_PUBLIC_API_URL` to the deployed API.
-- **Backend:** Render / Railway — set env vars; ensure `CORS_ORIGINS` includes the front-end origin.
-- **Database:** MongoDB Atlas — paste URI into `DATABASE_URL`.
-
-## MongoDB Atlas: `querySrv ECONNREFUSED`
-
-That error happens when Node **cannot resolve the DNS SRV record** used by `mongodb+srv://...` (before it even talks to MongoDB). It is usually **network or DNS**, not your password.
-
-Try, in order:
-
-1. **Atlas → Network Access** — allow your IP, or **`0.0.0.0/0`** for development only.
-2. **Windows DNS** — set adapter DNS to **8.8.8.8** / **1.1.1.1**, flush DNS: `ipconfig /flushdns`.
-3. **VPN / proxy / school–corp Wi‑Fi** — often block SRV or odd DNS; try another network or disable VPN.
-4. **` mongodb+srv` vs standard URI** — in Atlas → Connect → Drivers, if you can copy a **non-SRV** `mongodb://host1:27017,...` string with replica set + TLS, use that as `DATABASE_URL` (bypasses SRV lookup).
-5. The backend prefetches **`dns.setDefaultResultOrder('ipv4first')`** (see `src/dns-preflight.ts`) — rebuild/restart after pulling; it fixes some setups only.
-
-For fully local dev without Atlas: run MongoDB locally and set  
-`DATABASE_URL=mongodb://127.0.0.1:27017/ai-todo`.
-
-## Project layout
-
-- `backend/src` — Nest modules: `auth`, `users`, `todos`, `ai`, `chats`
-- `frontend/src/app` — App Router: `/`, `/login`, `/register`, `/dashboard`, `/ai`
-- `frontend/src/components` — UI: navbar, sidebar, todos, auth form, chat
-
-## Features
-
-✨ **Core Features:**
-- **User Authentication** — Register, login, JWT-based sessions
-- **Todo Management** — Create, read, update, delete todos with timestamps
-- **AI-Powered Helpers** — Generate todo suggestions, descriptions, and categorizations
-- **Chat History** — Save and retrieve AI chat threads
-- **Responsive Design** — Soft pink theme, mobile-friendly UI
-- **Real-time Updates** — Instant UI updates on todo changes
-- **Sidebar AI Assistant** — Quick AI suggestions while managing todos
-
-## Tech Stack
-
-### Backend
-- **Framework:** NestJS (TypeScript)
-- **Database:** MongoDB with Mongoose ODM
-- **Authentication:** JWT (JSON Web Tokens)
-- **AI Integration:** OpenAI API (GPT models)
-- **API Documentation:** Swagger/OpenAPI
-- **Testing:** Jest (unit tests + E2E)
-
-### Frontend
-- **Framework:** Next.js 15+ with App Router
-- **Styling:** CSS Modules + PostCSS
-- **State Management:** Zustand (lightweight store)
-- **Form Handling:** React Hook Form with Zod validation
-- **Build Tool:** Turbopack (fast bundling)
-- **UI Components:** Custom React components
-
-### Infrastructure
-- **Containerization:** Docker & Docker Compose
-- **Package Manager:** npm
-- **Database Hosting:** MongoDB Atlas (cloud) or local MongoDB
-- **Backend Hosting:** Render, Railway, or Docker
-- **Frontend Hosting:** Vercel, Netlify, or Docker
-
-## Detailed Project Structure
-
-```
-ai-todo-platform/
-├── backend/                          # NestJS backend API
-│   ├── src/
-│   │   ├── auth/                     # Authentication module
-│   │   │   ├── auth.controller.ts    # Login/register routes
-│   │   │   ├── auth.service.ts       # JWT & password logic
-│   │   │   ├── guards/               # JWT guard middleware
-│   │   │   └── strategies/           # Passport strategies
-│   │   ├── users/                    # User management
-│   │   │   ├── users.service.ts
-│   │   │   └── schemas/              # User Mongoose schema
-│   │   ├── todos/                    # Todo CRUD operations
-│   │   │   ├── todos.controller.ts
-│   │   │   ├── todos.service.ts
-│   │   │   ├── dto/                  # Request/response DTOs
-│   │   │   └── schemas/              # Todo Mongoose schema
-│   │   ├── ai/                       # AI generation features
-│   │   │   ├── ai.controller.ts
-│   │   │   ├── ai.service.ts         # OpenAI integration
-│   │   │   └── dto/                  # AI request/response models
-│   │   ├── chats/                    # Chat history management
-│   │   │   ├── chats.controller.ts
-│   │   │   ├── chats.service.ts
-│   │   │   └── schemas/              # Chat message schema
-│   │   ├── common/                   # Shared utilities
-│   │   │   └── decorators/           # Custom decorators
-│   │   ├── app.module.ts             # Root module
-│   │   ├── main.ts                   # App entry point
-│   │   └── dns-preflight.ts          # DNS optimization
-│   ├── test/                         # E2E tests
-│   ├── Dockerfile                    # Backend Docker image
-│   ├── tsconfig.json                 # TypeScript config
-│   ├── nest-cli.json                 # NestJS CLI config
-│   └── package.json
-│
-├── frontend/                         # Next.js frontend app
-│   ├── src/
-│   │   ├── app/                      # App Router pages
-│   │   │   ├── page.tsx              # Home page
-│   │   │   ├── login/                # Login page
-│   │   │   ├── register/             # Registration page
-│   │   │   ├── dashboard/            # Main todo dashboard
-│   │   │   ├── ai/                   # AI chat page
-│   │   │   ├── layout.tsx            # Root layout
-│   │   │   └── globals.css           # Global styles
-│   │   ├── components/               # Reusable UI components
-│   │   │   ├── AuthForm.tsx          # Login/register form
-│   │   │   ├── TodoList.tsx          # Todo list display
-│   │   │   ├── TodoItem.tsx          # Single todo item
-│   │   │   ├── ChatBox.tsx           # Chat interface
-│   │   │   ├── Sidebar.tsx           # Navigation sidebar
-│   │   │   └── Navbar.tsx            # Top navigation
-│   │   ├── hooks/                    # Custom React hooks
-│   │   │   └── use-hydration.ts      # Hydration safety
-│   │   ├── lib/                      # Utilities & API client
-│   │   │   └── api.ts                # Fetch wrapper for API calls
-│   │   ├── store/                    # Zustand state stores
-│   │   │   └── auth-store.ts         # Auth & user state
-│   │   └── public/                   # Static assets
-│   ├── Dockerfile                    # Frontend Docker image
-│   ├── next.config.ts                # Next.js configuration
-│   ├── tsconfig.json                 # TypeScript config
-│   ├── postcss.config.mjs            # PostCSS config
-│   └── package.json
-│
-├── docker-compose.yml                # Multi-container orchestration
-├── README.md                         # This file
-└── DESIGN.md                         # UI/UX design notes
-```
-
-## API Endpoints
-
-### Authentication (`/auth`)
-- `POST /auth/register` — Create a new user account
-- `POST /auth/login` — Login and receive JWT token
-
-### Users (`/users`)
-- `GET /users/me` — Get current user profile (JWT required)
-- `GET /users/:id` — Get user by ID
-- `PATCH /users/:id` — Update user profile
-
-### Todos (`/todos`)
-- `GET /todos` — List all todos for current user (paginated)
-- `POST /todos` — Create a new todo
-- `GET /todos/:id` — Get a specific todo
-- `PATCH /todos/:id` — Update a todo (title, description, status)
-- `DELETE /todos/:id` — Delete a todo
-- `PATCH /todos/:id/status` — Toggle completion status
-
-### AI Features (`/ai`)
-- `POST /ai/generate-title` — Generate a title suggestion for a todo
-- `POST /ai/generate-description` — Generate a description
-- `POST /ai/categorize` — Auto-categorize todos
-- `POST /ai/suggest-todos` — Get todo suggestions based on user input
-
-### Chats (`/chats`)
-- `POST /chats` — Create a new chat session
-- `GET /chats` — List all user's chat sessions
-- `GET /chats/:id` — Get chat details with message history
-- `POST /chats/:id/messages` — Add a message to a chat
-- `DELETE /chats/:id` — Delete a chat session
-
-## Authentication Flow
-
-1. **Registration** — User submits email/password → Backend hashes password → Stores in MongoDB → Returns success message
-2. **Login** — User submits credentials → Backend verifies → Generates JWT token → Client stores in localStorage
-3. **Protected Routes** — Frontend includes JWT in `Authorization: Bearer <token>` header → Backend validates with JWT guard → Returns user data
-4. **Token Refresh** — (Optional) Implement refresh token rotation for enhanced security
-5. **Logout** — Client deletes JWT from localStorage → User redirected to login
-
-## Environment Variables Setup
-
-### Backend `.env` Example
-```env
-PORT=4000
-DATABASE_URL=mongodb+srv://user:password@cluster.mongodb.net/ai-todo?retryWrites=true&w=majority
-JWT_SECRET=your-super-secret-key-change-this-in-production
-OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-OPENAI_MODEL=gpt-4-turbo
-CORS_ORIGINS=http://localhost:3000,https://yourdomain.com
-NODE_ENV=development
-```
-
-### Frontend `.env.local` Example
-```env
-NEXT_PUBLIC_API_URL=http://localhost:4000
-NEXT_PUBLIC_APP_NAME=BlushTodo
-```
-
-## Deployment Guide
-
-### Deploy Backend to Render/Railway
-
-1. **Create account** on [Render.com](https://render.com) or [Railway.app](https://railway.app)
-2. **Connect GitHub repo**
-3. **Set environment variables:**
-   - `DATABASE_URL` — MongoDB Atlas connection string
-   - `JWT_SECRET` — Strong random secret
-   - `OPENAI_API_KEY` — Your API key
-   - `CORS_ORIGINS` — Include your frontend URL
-4. **Configure start command:** `npm run start:prod` or `npm run build && npm start`
-5. **Backend URL** — Copy the deployed URL (e.g., `https://api.render.com`)
-
-### Deploy Frontend to Vercel
-
-1. **Connect GitHub** to [Vercel](https://vercel.com)
-2. **Set build command:** `npm run build`
-3. **Set environment variable:**
-   - `NEXT_PUBLIC_API_URL=https://your-backend-api.com`
-4. **Deploy** — Vercel auto-deploys on push to main/master
-5. **Custom domain** — Add in Vercel project settings
-
-### Deploy with Docker Compose (Production)
-
-```bash
-# Build images
-docker-compose build
-
-# Run containers
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
-```
-
-Ensure `NEXT_PUBLIC_API_URL` is set correctly in frontend `.env` file or Dockerfile.
-
-## Troubleshooting
-
-### 1. **CORS Error: "Access to XMLHttpRequest blocked"**
-   - **Cause:** Frontend and backend on different origins
-   - **Fix:** Add frontend URL to backend `CORS_ORIGINS` env var: `CORS_ORIGINS=http://localhost:3000,https://yourdomain.com`
-
-### 2. **MongoDB Connection Error: `querySrv ECONNREFUSED`**
-   - **Cause:** DNS SRV lookup failing (network/DNS issue, not password)
-   - **Solutions:**
-     - Allow your IP in MongoDB Atlas → Network Access
-     - Flush local DNS: `ipconfig /flushdns` (Windows) or `sudo dscacheutil -flushcache` (Mac)
-     - Try non-SRV URI format from Atlas drivers page
-     - Disable VPN/proxy temporarily
-
-### 3. **JWT Token Expired**
-   - **Cause:** Token has invalid signature or expired
-   - **Fix:** Clear localStorage and login again
-
-### 4. **OpenAI API Rate Limit**
-   - **Cause:** Too many requests to OpenAI
-   - **Fix:** Add request throttling in `ai.service.ts` or upgrade OpenAI plan
-
-### 5. **Frontend Not Finding API**
-   - **Cause:** `NEXT_PUBLIC_API_URL` not set or incorrect
-   - **Fix:** Check `.env.local` file and rebuild: `npm run dev`
-
-### 6. **Database Query Slow**
-   - **Fix:** Add MongoDB indexes on frequently queried fields (user_id, created_at, etc.)
-
-### 7. **Port Already in Use**
-   - **Backend (4000):** `lsof -i :4000` (Mac/Linux) or `netstat -ano | findstr :4000` (Windows)
-   - **Frontend (3000):** Kill process or use different port: `npm run dev -- -p 3001`
-
-## Contributing
-
-1. **Fork** the repository
-2. **Create a feature branch:** `git checkout -b feature/my-feature`
-3. **Commit changes:** `git commit -m "Add my feature"`
-4. **Push to branch:** `git push origin feature/my-feature`
-5. **Open a Pull Request** with detailed description
-6. **Code Review** — Wait for maintainer feedback
-7. **Merge** — Once approved, PR is merged to main
-
-### Code Style
-- Use **TypeScript** for type safety
-- Follow **NestJS** patterns for backend code
-- Use **React hooks** for frontend components
-- Run linter: `npm run lint` (if configured)
-- Format code: `npm run format` (if configured)
-
-## Performance Optimization Tips
-
-- **Frontend:** Use Next.js image optimization, lazy loading, code splitting
-- **Backend:** Implement caching (Redis), database indexing, pagination
-- **Database:** Add compound indexes for common queries, use projection to limit fields
-- **API Calls:** Debounce search queries, cache responses on client side
-- **Images:** Use WebP format, compress before upload
-
-## Known Limitations
-
-- Single-user per session (no real-time multi-device sync yet)
-- Chat history limited by MongoDB collection size
-- OpenAI rate limits apply (depends on plan)
-- No offline-first functionality (requires connectivity)
-
-## Future Enhancements
-
-- [ ] Real-time collaboration with WebSockets
-- [ ] Dark mode theme toggle
-- [ ] Todo templates and workflows
-- [ ] Integration with calendar/Google Tasks
-- [ ] Mobile app (React Native)
-- [ ] Advanced analytics dashboard
-- [ ] Todo sharing and team features
-- [ ] Custom AI models integration
-
-## FAQ
-
-**Q: Can I use SQLite instead of MongoDB?**  
-A: You'd need to replace Mongoose with another ORM (TypeORM, Prisma). Doable but requires refactoring.
-
-**Q: Is my data encrypted in transit?**  
-A: Yes, MongoDB Atlas uses TLS/SSL. Backend-to-frontend should also use HTTPS in production.
-
-**Q: Can I disable the AI features?**  
-A: Yes, skip the `/ai` endpoints and remove OpenAI API calls from the frontend.
-
-**Q: How do I backup my MongoDB data?**  
-A: Use MongoDB Atlas built-in backup, or `mongodump` command-line tool.
-
-## Support & Community
-
-- **Issues:** Report bugs on [GitHub Issues](https://github.com/yourusername/ai-todo-platform/issues)
-- **Discussions:** Ask questions in [GitHub Discussions](https://github.com/yourusername/ai-todo-platform/discussions)
-- **Email:** Contact maintainers at `support@example.com`
-
-## License
-
-This project is licensed under the **MIT License** — see [LICENSE](LICENSE) file for details.
+A full-stack task management application with AI-assisted planning. Capture tasks, reorder by priority, and let GPT-4o-mini help generate task breakdowns, classify urgency, suggest deadlines, and assist via chat — all within a clean dashboard.
 
 ---
 
-**Made with ❤️ by the BlushTodo team**  
-Last updated: April 2026
+## Tech Stack
+
+| Layer | Technology | Version |
+|-------|-----------|---------|
+| **Frontend** | Next.js | 15.5.14 |
+| | React | 19.1.0 |
+| | TypeScript | ^5 |
+| | Tailwind CSS | ^4 |
+| | Zustand (state) | 5.0.12 |
+| | react-hook-form | 7.72.0 |
+| | zod (validation) | 4.3.6 |
+| | axios (HTTP) | 1.14.0 |
+| | framer-motion (animations) | 12.38.0 |
+| | @dnd-kit (drag-and-drop) | core 6.3.1 / sortable 10.0.0 |
+| | lucide-react (icons) | 1.7.0 |
+| **Backend** | NestJS | 10.x |
+| | Node.js runtime | 20 (Alpine Docker) |
+| | TypeScript | 5.9.3 |
+| | Mongoose (ODM) | ^10.1.0 |
+| | Passport.js + JWT | passport-jwt 4.x |
+| | bcrypt (password hashing) | 6.x |
+| | OpenAPI (Swagger) | @nestjs/swagger 7.4.2 |
+| | class-validator / class-transformer | 0.14.x / 0.5.x |
+| **Database** | MongoDB | (Mongoose ODM) |
+| **Auth** | JWT (signed with HS256, 7-day expiry) | |
+| **AI** | OpenAI SDK | 6.33.0 |
+| **Deployment** | Docker (multi-stage), Render | |
+
+---
+
+## Features
+
+- ✅ User registration & login (JWT)
+- ✅ Create, read, update, delete todos
+- ✅ Drag-and-drop reorder (via @dnd-kit)
+- ✅ Priority labels (low / medium / high)
+- ✅ Deadline assignment
+- ✅ AI: break a goal into actionable tasks (`POST /ai/generate-todos`)
+- ✅ AI: suggest next action (`POST /ai/suggest`)
+- ✅ AI: classify priority (`POST /ai/priority`)
+- ✅ AI: suggest deadline (`POST /ai/deadline`)
+- ✅ AI chat assistant with conversation history (`POST /chats`)
+- ✅ Swagger API docs at `/docs`
+- ✅ Rate limiting (120 requests / 60s)
+- ✅ Docker multi-stage builds (frontend + backend)
+- ❌ Unit tests exist for auth service only (1 spec file found)
+- ❌ E2E test template exists but no CI pipeline configured
+- ❌ Social login / OAuth
+- ❌ File attachments on todos
+- ❌ Real-time sync / WebSocket
+
+---
+
+## Architecture
+
+### Monorepo structure
+
+This is a **monorepo** with two independent applications sharing a root `.gitignore`:
+
+```
+ai-todo-platform/
+├── backend/                    # NestJS API server
+│   ├── Dockerfile
+│   ├── package.json
+│   ├── tsconfig.json
+│   └── src/
+│       ├── main.ts             # Entry point (port from $PORT || 4000)
+│       ├── app.module.ts       # Root module
+│       ├── dns-preflight.ts    # DNS IPv4 fix for MongoDB Atlas
+│       ├── auth/               # Auth module (register, login, JWT)
+│       ├── users/              # User management
+│       ├── todos/              # CRUD + reorder
+│       ├── ai/                 # OpenAI integration
+│       ├── chats/              # Chat assistant
+│       └── common/             # Shared decorators
+├── frontend/                   # Next.js app
+│   ├── Dockerfile
+│   ├── package.json
+│   ├── next.config.ts
+│   └── src/
+│       ├── app/                # Pages (/, /login, /register, /dashboard, /ai)
+│       ├── components/         # AuthForm, TodoItem, TodoList, Sidebar, Navbar, ChatBox
+│       ├── store/              # Zustand auth store
+│       ├── lib/api.ts          # Axios client + API functions
+│       └── hooks/              # use-hydration
+├── render.yaml                 # Render deployment config
+├── .gitignore
+└── README.md
+```
+
+### Data flow
+
+```
+Browser  ←→  Next.js (Frontend)  ←→  Axios API calls  ←→  NestJS (Backend)  ←→  MongoDB
+                 ↑                           ↑                        ↑
+           Zustand store              Bearer token in           JWT strategy
+           (localStorage)             Authorization header      validates token
+```
+
+---
+
+## Auth Flow
+
+1. User submits email + password to `POST /auth/register` or `POST /auth/login`
+2. Backend hashes password with bcrypt (12 rounds), stores in MongoDB
+3. Backend returns `{ access_token: string, user: { id, email } }`
+4. Frontend stores token + user in **Zustand persist store** → **localStorage** (key: `ai-todo-auth`)
+5. All subsequent API calls include `Authorization: Bearer <token>` via axios interceptor
+6. JWT token is signed with `JWT_SECRET`, expires in **7 days**
+7. Protected routes use `@UseGuards(JwtAuthGuard)`, which validates the token via Passport JWT strategy
+
+Token is **NOT** stored in HTTP-only cookies — it lives in `localStorage`. This means the app is vulnerable to XSS if not properly sanitized (current code does not set security headers).
+
+---
+
+## Database Schema
+
+### `users` collection
+
+| Field    | Type   | Notes                |
+|----------|--------|----------------------|
+| _id      | ObjectId | Auto-generated     |
+| email    | String | Unique, required     |
+| password | String | bcrypt hash, required |
+| createdAt| Date   | Mongoose timestamps  |
+
+### `todos` collection
+
+| Field     | Type      | Notes                              |
+|-----------|-----------|------------------------------------|
+| _id       | ObjectId  | Auto-generated                     |
+| title     | String    | Required, trimmed                  |
+| completed | Boolean   | Default: false                     |
+| priority  | enum      | `'low' | 'medium' | 'high'`, default: 'medium' |
+| deadline  | Date|null | Default: null                      |
+| userId    | ObjectId  | Ref → User, required, indexed      |
+| order     | Number    | Sort order for drag-and-drop (lower = first) |
+| createdAt | Date      | Mongoose timestamps                |
+| updatedAt | Date      | Mongoose timestamps                |
+
+### `chats` collection
+
+| Field    | Type          | Notes                          |
+|----------|---------------|--------------------------------|
+| _id      | ObjectId      | Auto-generated                 |
+| title    | String        | Optional                       |
+| messages | Array         | `{ role: string, content: string, createdAt?: Date }` |
+| userId   | ObjectId      | Ref → User                     |
+| updatedAt| Date          | Mongoose timestamps            |
+
+---
+
+## API Endpoints
+
+All endpoints are prefixed with the backend base URL (e.g. `http://localhost:4000`).
+
+### Auth
+
+| Method | Path            | Auth required | Description          |
+|--------|-----------------|---------------|----------------------|
+| POST   | `/auth/register`| No            | Create account       |
+| POST   | `/auth/login`   | No            | Sign in              |
+| GET    | `/auth/me`      | Yes (Bearer)  | Get current user     |
+
+### Todos
+
+| Method | Path             | Auth required | Description                |
+|--------|------------------|---------------|----------------------------|
+| GET    | `/todos`         | Yes           | List todos (paginated, filterable) |
+| POST   | `/todos`         | Yes           | Create todo               |
+| PATCH  | `/todos/:id`     | Yes           | Update todo               |
+| DELETE | `/todos/:id`     | Yes           | Delete todo               |
+| PATCH  | `/todos/reorder` | Yes           | Reorder by ordered IDs    |
+
+### AI
+
+| Method | Path                | Auth required | Description                    |
+|--------|---------------------|---------------|--------------------------------|
+| POST   | `/ai/generate-todos`| Yes           | Break goal into tasks          |
+| POST   | `/ai/suggest`       | Yes           | Suggest next action            |
+| POST   | `/ai/priority`      | Yes           | Classify task priority         |
+| POST   | `/ai/deadline`      | Yes           | Suggest a deadline             |
+
+### Chats
+
+| Method | Path      | Auth required | Description                       |
+|--------|-----------|---------------|-----------------------------------|
+| GET    | `/chats`  | Yes           | List chat sessions                |
+| POST   | `/chats`  | Yes           | Send message, get AI reply        |
+
+### Docs
+
+| Method | Path   | Auth required | Description         |
+|--------|--------|---------------|---------------------|
+| GET    | `/docs`| No            | Swagger UI explorer |
+
+---
+
+## Testing
+
+- **Unit tests**: Only `auth.service.spec.ts` exists (1 test file)
+- **E2E tests**: `backend/test/todos.e2e-spec.ts` exists but is a template
+- **Frontend tests**: None found
+- **Coverage**: Not measured
+- **Run tests**:
+
+```bash
+# Backend unit tests
+cd backend && npm run test
+
+# Backend E2E tests
+cd backend && npm run test:e2e
+```
+
+---
+
+## Deployment
+
+### Platform: Render (configured)
+
+- **Backend**: Docker web service (multi-stage build, `./backend/Dockerfile`)
+- **Frontend**: Docker web service (multi-stage build, `./frontend/Dockerfile`)
+- **Config**: `render.yaml` at repo root
+- **CI/CD**: Not configured (manual deploy via Render dashboard)
+
+### Required env vars on Render
+
+See full table in the [Env vars section](../#environment-variables) below.
+
+### Docker
+
+Both apps ship with production-ready multi-stage Dockerfiles:
+
+- **Backend** (`backend/Dockerfile`):
+  - Stage 1 (deps): `npm ci`
+  - Stage 2 (build): `npm run build` + `npm prune --omit=dev`
+  - Stage 3 (runner): copies only `dist/`, `node_modules/`, `package*.json`
+  - Exposes `4000`, CMD: `node dist/main.js`
+
+- **Frontend** (`frontend/Dockerfile`):
+  - Stage 1 (build): `npm ci` + `npm run build` (accepts `NEXT_PUBLIC_API_URL` as build arg)
+  - Stage 2 (runner): copies `.next/`, `public/`, config files, production deps only
+  - Exposes `3000`, CMD respects `$PORT` env var
+
+### Environment variables
+
+| Key | Required | Default | Used in | Description |
+|-----|----------|---------|---------|-------------|
+| `DATABASE_URL` | Yes | `mongodb://127.0.0.1:27017/ai-todo` | `backend/src/app.module.ts:18` | MongoDB connection string |
+| `JWT_SECRET` | Yes | `change-me-in-production` | `backend/src/auth/auth.module.ts:17` | Secret key for JWT signing |
+| `OPENAI_API_KEY` | Yes | (none — AI endpoints return 503) | `backend/src/ai/ai.service.ts:21` | OpenAI API key for AI features |
+| `NEXT_PUBLIC_API_URL` | Yes | `http://localhost:4000` | `frontend/src/lib/api.ts:4-6` | Backend URL (must be set at build time) |
+| `OPENAI_MODEL` | No | `gpt-4o-mini` | `backend/src/ai/ai.service.ts:22` | OpenAI model name |
+| `PORT` | No | `4000` (backend), `3000` (frontend) | `backend/src/main.ts:35`, `frontend/Dockerfile` | Render injects this automatically |
+
+---
+
+## Known Issues / Limitations
+
+1. **Token in localStorage** — JWT is stored in localStorage, making the app vulnerable to XSS. Consider moving to HTTP-only cookies.
+2. **No refresh token** — JWT expires in 7 days. No refresh mechanism exists; user must re-login.
+3. **No rate limit headers** — `@nestjs/throttler` is configured but does not return `Retry-After` headers to clients.
+4. **Frontend auth store persists the token** — but there is no middleware/guard to redirect unauthenticated users on page load. Dashboard pages may render briefly before the API call fails.
+5. **No loading/error boundaries on all pages** — some API errors may not be gracefully handled by the UI.
+6. **No HTTPS enforcement** — no helmet or CSP headers configured on the backend.
+7. **AI endpoints return 503** if `OPENAI_API_KEY` is not set — the app works without AI, those features will be unavailable.
+8. **Frontend build arg `NEXT_PUBLIC_API_URL`** must be set correctly at build time (Docker build) — runtime overrides are not supported by Next.js for public env vars.
+9. **Test coverage is minimal** — only one spec file exists.
+10. **No CI/CD pipeline** — deployment is manual via Render dashboard.

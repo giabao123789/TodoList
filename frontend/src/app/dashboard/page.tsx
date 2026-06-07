@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Search, Sparkles } from "lucide-react";
+import { Plus, Pencil, Search, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import {
   type Todo,
@@ -20,7 +20,7 @@ import { TodoList } from "@/components/TodoList";
 
 type Filter = "all" | "completed" | "pending";
 
-const easeOut = [0.16, 1, 0.3, 1] as const;
+const easeOut = [0.34, 1.8, 0.64, 1] as const;
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -132,11 +132,13 @@ export default function DashboardPage() {
   const [aiGoal, setAiGoal] = useState("");
   const [aiBusy, setAiBusy] = useState<string | null>(null);
   const [aiNote, setAiNote] = useState<string | null>(null);
+  const [inputShake, setInputShake] = useState(false);
 
   const selected = items.find((t) => t.id === selectedId) ?? null;
   const openCount = items.filter((todo) => !todo.completed).length;
   const completedCount = items.filter((todo) => todo.completed).length;
   const highPriorityCount = items.filter((todo) => todo.priority === "high").length;
+  const completedPercent = items.length ? Math.round((completedCount / items.length) * 100) : 0;
 
   const refreshFirstPage = useCallback(async () => {
     setLoading(true);
@@ -191,6 +193,8 @@ export default function DashboardPage() {
     const todo = await createTodo({ title });
     setNewTitle("");
     setItems((prev) => [todo, ...prev]);
+    setInputShake(true);
+    window.setTimeout(() => setInputShake(false), 520);
   };
 
   const onToggle = async (id: string, completed: boolean) => {
@@ -313,13 +317,32 @@ export default function DashboardPage() {
   };
 
   return (
-    <motion.div
-      variants={containerVariants}
-      initial="hidden"
-      animate="show"
-      className="space-y-6"
-    >
-      <motion.section
+    <div className="page-shell relative overflow-hidden">
+      <div aria-hidden className="page-background">
+        <span className="blob blob-1" />
+        <span className="blob blob-2" />
+        <span className="blob blob-3" />
+        <span className="floating-shape" style={{ left: '10%', top: '72%', animationDelay: '0s' }}>
+          ◆
+        </span>
+        <span className="floating-shape" style={{ left: '80%', top: '58%', animationDelay: '1.8s' }}>
+          ▲
+        </span>
+        <span className="floating-shape" style={{ left: '48%', top: '88%', animationDelay: '3.4s' }}>
+          ●
+        </span>
+        <span className="floating-shape" style={{ left: '24%', top: '42%', animationDelay: '2.2s' }}>
+          ◆
+        </span>
+      </div>
+
+      <motion.div
+        variants={containerVariants}
+        initial="hidden"
+        animate="show"
+        className="space-y-6 relative"
+      >
+        <motion.section
         variants={sectionVariants}
         className="surface-panel relative overflow-hidden rounded-[32px] px-6 py-7 sm:px-8 sm:py-8"
       >
@@ -366,17 +389,23 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="flex flex-col gap-3 sm:flex-row">
-                  <input
-                    value={newTitle}
-                    onChange={(event) => setNewTitle(event.target.value)}
-                    placeholder="Add a task you do not want to drop..."
-                    className="field-shell min-w-0 flex-1 rounded-2xl px-4 py-3.5 text-sm sm:text-base"
-                  />
+                  <div className={`relative min-w-0 input-with-icon ${inputShake ? 'animate-input-shake' : ''}`}>
+                    <Pencil className="pencil-icon pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--primary)]" />
+                    <input
+                      value={newTitle}
+                      onChange={(event) => setNewTitle(event.target.value)}
+                      placeholder="Add a task you do not want to drop..."
+                      className="field-shell w-full rounded-2xl py-3.5 pl-11 pr-4 text-sm sm:text-base"
+                    />
+                  </div>
                   <motion.button
                     type="submit"
-                    whileTap={{ scale: 0.97 }}
+                    whileHover={{ scale: 1.2, rotate: 15 }}
+                    whileTap={{ scale: 0.88, rotate: -10 }}
+                    transition={{ type: 'spring', stiffness: 420, damping: 24 }}
                     className="btn-primary rounded-2xl px-5 py-3.5 text-sm font-semibold"
                   >
+                    <Plus className="mr-2 h-4 w-4" />
                     Add task
                   </motion.button>
                 </div>
@@ -476,9 +505,26 @@ export default function DashboardPage() {
                   side panel.
                 </p>
               </div>
-              <span className="rounded-full border border-[color:var(--border)] bg-[rgba(24,24,38,0.76)] px-3 py-1 text-xs text-[var(--foreground-muted)]">
+              <span className="rounded-full border border-[#E7E5E4] bg-[#FEF6EE] px-3 py-1 text-xs text-[var(--foreground-muted)]">
                 {items.length} loaded
               </span>
+            </div>
+
+            <div className="rounded-[20px] border border-[#E7E5E4] bg-[#FFF8F0] p-3">
+              <div className="flex items-center justify-between gap-4 text-sm font-semibold text-[var(--foreground-muted)]">
+                <span>Completion</span>
+                <span>{completedPercent}% done</span>
+              </div>
+              <div className="mt-3 h-3 overflow-hidden rounded-full border border-[#E7E5E4] bg-white">
+                <motion.div
+                  initial={false}
+                  animate={{ width: `${completedPercent}%` }}
+                  transition={{ type: 'spring', stiffness: 120, damping: 18 }}
+                  className="relative h-full rounded-full bg-gradient-to-r from-[#F97316] to-[#EF4444] shadow-[0_12px_30px_rgba(249,115,22,0.18)]"
+                >
+                  <span className="absolute inset-y-0 left-0 block w-full bg-[linear-gradient(90deg,rgba(255,255,255,0.55),rgba(255,255,255,0.12),rgba(255,255,255,0.55))] opacity-60" style={{ animation: 'shimmer 1.8s infinite' }} />
+                </motion.div>
+              </div>
             </div>
 
             <AnimatePresence mode="wait" initial={false}>
@@ -643,5 +689,6 @@ export default function DashboardPage() {
         </motion.aside>
       </div>
     </motion.div>
+  </div>
   );
 }

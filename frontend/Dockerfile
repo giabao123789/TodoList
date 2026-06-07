@@ -17,4 +17,4 @@ COPY --from=build /app/public ./public
 COPY --from=build /app/next.config.ts ./
 COPY --from=build /app/package.json ./
 EXPOSE 3000
-CMD ["npm", "run", "start", "--", "-p", "3000"]
+CMD npm run start -- -p ${PORT:-3000}
