@@ -22,12 +22,12 @@ A full-stack task management application with AI-assisted planning. Capture task
 | **Backend** | NestJS | 10.x |
 | | Node.js runtime | 20 (Alpine Docker) |
 | | TypeScript | 5.9.3 |
-| | Mongoose (ODM) | ^10.1.0 |
+| | TypeORM (ORM) | ^0.3.x |
 | | Passport.js + JWT | passport-jwt 4.x |
 | | bcrypt (password hashing) | 6.x |
 | | OpenAPI (Swagger) | @nestjs/swagger 7.4.2 |
 | | class-validator / class-transformer | 0.14.x / 0.5.x |
-| **Database** | MongoDB | (Mongoose ODM) |
+| **Database** | PostgreSQL | (TypeORM) |
 | **Auth** | JWT (signed with HS256, 7-day expiry) | |
 | **AI** | OpenAI SDK | 6.33.0 |
 | **Deployment** | Docker (multi-stage), Render | |
@@ -72,7 +72,6 @@ ai-todo-platform/
 │   └── src/
 │       ├── main.ts             # Entry point (port from $PORT || 4000)
 │       ├── app.module.ts       # Root module
-│       ├── dns-preflight.ts    # DNS IPv4 fix for MongoDB Atlas
 │       ├── auth/               # Auth module (register, login, JWT)
 │       ├── users/              # User management
 │       ├── todos/              # CRUD + reorder
@@ -97,7 +96,7 @@ ai-todo-platform/
 ### Data flow
 
 ```
-Browser  ←→  Next.js (Frontend)  ←→  Axios API calls  ←→  NestJS (Backend)  ←→  MongoDB
+Browser  ←→  Next.js (Frontend)  ←→  Axios API calls  ←→  NestJS (Backend)  ←→  PostgreSQL
                  ↑                           ↑                        ↑
            Zustand store              Bearer token in           JWT strategy
            (localStorage)             Authorization header      validates token
@@ -108,7 +107,7 @@ Browser  ←→  Next.js (Frontend)  ←→  Axios API calls  ←→  NestJS (Ba
 ## Auth Flow
 
 1. User submits email + password to `POST /auth/register` or `POST /auth/login`
-2. Backend hashes password with bcrypt (12 rounds), stores in MongoDB
+2. Backend hashes password with bcrypt (12 rounds), stores in PostgreSQL
 3. Backend returns `{ access_token: string, user: { id, email } }`
 4. Frontend stores token + user in **Zustand persist store** → **localStorage** (key: `ai-todo-auth`)
 5. All subsequent API calls include `Authorization: Bearer <token>` via axios interceptor
@@ -121,38 +120,39 @@ Token is **NOT** stored in HTTP-only cookies — it lives in `localStorage`. Thi
 
 ## Database Schema
 
-### `users` collection
+### `users` table
 
 | Field    | Type   | Notes                |
 |----------|--------|----------------------|
-| _id      | ObjectId | Auto-generated     |
+| id       | UUID   | Primary key (Auto-generated) |
 | email    | String | Unique, required     |
 | password | String | bcrypt hash, required |
-| createdAt| Date   | Mongoose timestamps  |
+| createdAt| Date   | Auto-generated timestamp |
 
-### `todos` collection
+### `todos` table
 
 | Field     | Type      | Notes                              |
 |-----------|-----------|------------------------------------|
-| _id       | ObjectId  | Auto-generated                     |
+| id        | UUID      | Primary key (Auto-generated)       |
 | title     | String    | Required, trimmed                  |
 | completed | Boolean   | Default: false                     |
 | priority  | enum      | `'low' | 'medium' | 'high'`, default: 'medium' |
-| deadline  | Date|null | Default: null                      |
-| userId    | ObjectId  | Ref → User, required, indexed      |
+| deadline  | Date\|null | Default: null                      |
+| userId    | UUID      | Foreign key or reference, required, indexed |
 | order     | Number    | Sort order for drag-and-drop (lower = first) |
-| createdAt | Date      | Mongoose timestamps                |
-| updatedAt | Date      | Mongoose timestamps                |
+| createdAt | Date      | Auto-generated timestamp           |
+| updatedAt | Date      | Auto-generated timestamp           |
 
-### `chats` collection
+### `chats` table
 
 | Field    | Type          | Notes                          |
 |----------|---------------|--------------------------------|
-| _id      | ObjectId      | Auto-generated                 |
+| id       | UUID          | Primary key (Auto-generated)   |
 | title    | String        | Optional                       |
-| messages | Array         | `{ role: string, content: string, createdAt?: Date }` |
-| userId   | ObjectId      | Ref → User                     |
-| updatedAt| Date          | Mongoose timestamps            |
+| messages | JSONB         | Array of message objects `{ role: string, content: string, createdAt?: Date }` |
+| userId   | UUID      | Reference to user              |
+| createdAt| Date          | Auto-generated timestamp       |
+| updatedAt| Date          | Auto-generated timestamp       |
 
 ---
 
@@ -252,7 +252,7 @@ Both apps ship with production-ready multi-stage Dockerfiles:
 
 | Key | Required | Default | Used in | Description |
 |-----|----------|---------|---------|-------------|
-| `DATABASE_URL` | Yes | `mongodb://127.0.0.1:27017/ai-todo` | `backend/src/app.module.ts:18` | MongoDB connection string |
+| `DATABASE_URL` | Yes | `postgresql://postgres:password@localhost:5432/ai-todo` | `backend/src/app.module.ts:18` | PostgreSQL connection string |
 | `JWT_SECRET` | Yes | `change-me-in-production` | `backend/src/auth/auth.module.ts:17` | Secret key for JWT signing |
 | `OPENAI_API_KEY` | Yes | (none — AI endpoints return 503) | `backend/src/ai/ai.service.ts:21` | OpenAI API key for AI features |
 | `NEXT_PUBLIC_API_URL` | Yes | `http://localhost:4000` | `frontend/src/lib/api.ts:4-6` | Backend URL (must be set at build time) |
