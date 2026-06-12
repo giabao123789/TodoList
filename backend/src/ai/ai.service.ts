@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
-import { TodoPriority } from '../todos/schemas/todo.schema';
+import { TodoPriority } from '../todos/todo.entity';
 import { DeadlineDto } from './dto/deadline.dto';
 import { GenerateTodosDto } from './dto/generate-todos.dto';
 import { PriorityDto } from './dto/priority.dto';

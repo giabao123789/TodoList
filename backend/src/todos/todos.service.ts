@@ -3,61 +3,60 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { InjectRepository } from '@nestjs/typeorm';
+import { ILike, In, Repository } from 'typeorm';
 import { CreateTodoDto } from './dto/create-todo.dto';
 import { QueryTodosDto, TodoFilter } from './dto/query-todos.dto';
 import { UpdateTodoDto } from './dto/update-todo.dto';
-import { Todo, TodoDocument } from './schemas/todo.schema';
+import { Todo } from './todo.entity';
 
 @Injectable()
 export class TodosService {
   constructor(
-    @InjectModel(Todo.name) private readonly todoModel: Model<TodoDocument>,
+    @InjectRepository(Todo) private readonly repo: Repository<Todo>,
   ) {}
 
   async create(userId: string, dto: CreateTodoDto) {
-    const maxOrder = await this.todoModel
-      .findOne({ userId: new Types.ObjectId(userId) })
-      .sort({ order: -1 })
-      .select('order')
-      .lean()
-      .exec();
-    const nextOrder =
-      dto.order ?? (maxOrder ? (maxOrder as any).order + 1 : 0);
-    return this.todoModel.create({
+    // compute next order
+    const maxRow = await this.repo
+      .createQueryBuilder('t')
+      .select('MAX(t.order)', 'max')
+      .where('t.userId = :userId', { userId })
+      .getRawOne<{ max: number | null }>();
+    const nextOrder = dto.order ?? (maxRow?.max != null ? maxRow.max + 1 : 0);
+
+    const todo = this.repo.create({
       title: dto.title,
       completed: dto.completed ?? false,
       priority: dto.priority,
       deadline: dto.deadline ? new Date(dto.deadline) : null,
-      userId: new Types.ObjectId(userId),
+      userId,
       order: nextOrder,
     });
+    return this.repo.save(todo);
   }
 
   async findAll(userId: string, query: QueryTodosDto) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
-    const filter: Record<string, unknown> = {
-      userId: new Types.ObjectId(userId),
-    };
+
+    const where: Record<string, unknown> = { userId };
     if (query.filter === TodoFilter.Completed) {
-      filter.completed = true;
+      where.completed = true;
     } else if (query.filter === TodoFilter.Pending) {
-      filter.completed = false;
+      where.completed = false;
     }
     if (query.search?.trim()) {
-      filter.title = { $regex: query.search.trim(), $options: 'i' };
+      where.title = ILike(`%${query.search.trim()}%`);
     }
-    const [items, total] = await Promise.all([
-      this.todoModel
-        .find(filter)
-        .sort({ order: 1, createdAt: -1 })
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .exec(),
-      this.todoModel.countDocuments(filter).exec(),
-    ]);
+
+    const [items, total] = await this.repo.findAndCount({
+      where: where as any,
+      order: { order: 'ASC', createdAt: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
     return {
       items,
       total,
@@ -68,8 +67,8 @@ export class TodosService {
   }
 
   async findOne(userId: string, id: string) {
-    const todo = await this.todoModel.findById(id).exec();
-    if (!todo || todo.userId.toString() !== userId) {
+    const todo = await this.repo.findOne({ where: { id } });
+    if (!todo || todo.userId !== userId) {
       throw new NotFoundException('Todo not found');
     }
     return todo;
@@ -84,21 +83,19 @@ export class TodosService {
       todo.deadline = dto.deadline ? new Date(dto.deadline) : null;
     }
     if (dto.order !== undefined) todo.order = dto.order;
-    return todo.save();
+    return this.repo.save(todo);
   }
 
   async remove(userId: string, id: string) {
     const todo = await this.findOne(userId, id);
-    await todo.deleteOne();
+    await this.repo.remove(todo);
     return { success: true };
   }
 
   async reorder(userId: string, orderedIds: string[]) {
-    const objectUserId = new Types.ObjectId(userId);
-    const ids = orderedIds.map((id) => new Types.ObjectId(id));
-    const count = await this.todoModel.countDocuments({
-      userId: objectUserId,
-      _id: { $in: ids },
+    // verify all ids belong to user
+    const count = await this.repo.count({
+      where: { userId, id: In(orderedIds) },
     });
     if (count !== orderedIds.length) {
       throw new BadRequestException(
@@ -107,10 +104,7 @@ export class TodosService {
     }
     await Promise.all(
       orderedIds.map((id, index) =>
-        this.todoModel.updateOne(
-          { _id: id, userId: objectUserId },
-          { $set: { order: index } },
-        ),
+        this.repo.update({ id, userId }, { order: index }),
       ),
     );
     return { success: true };

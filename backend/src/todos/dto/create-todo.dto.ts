@@ -10,7 +10,7 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
-import { TodoPriority } from '../schemas/todo.schema';
+import { TodoPriority } from '../todo.entity';
 
 export class CreateTodoDto {
   @ApiProperty()
